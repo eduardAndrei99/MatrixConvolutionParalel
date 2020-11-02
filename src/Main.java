@@ -2,6 +2,8 @@ import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Scanner;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 
 public class Main {
 
@@ -16,7 +18,9 @@ public class Main {
     public static void main(String[] args) throws IOException {
 
         final int N, M, n, m;
-        final int p = 16;
+        final int p = 2;
+
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(p);
 
         Path filePath = Paths.get("data.txt");
         Scanner scanner = new Scanner(filePath);
@@ -60,7 +64,7 @@ public class Main {
                 rest--;
             }
 
-            MyThread myThread = new MyThread(F, N, M, W, n, m , V, start, end);
+            MyThread myThread = new MyThread(cyclicBarrier, F, N, M, W, n, m , start, end);
             threads[i] = myThread;
             threads[i].start();
             //System.out.println(start + " " + end);
@@ -76,29 +80,26 @@ public class Main {
         }
         System.out.println(System.currentTimeMillis() - startTime);
 
-        /*
-        long startTime = System.currentTimeMillis();
-        for (int index = 0; index < N * M; index++) {
-            int i = getLine(index, M);
-            int j = getColumn(index, M);
-            filter(i, j, F, N, M, W, n, m, V);
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < M; j++) {
+                System.out.print(F[i][j] + " ");
+            }
+            System.out.println();
         }
-        System.out.println("time : " + (System.currentTimeMillis() - startTime));
-         */
-
-
 
     }
 
     public static class MyThread extends Thread {
 
+        private CyclicBarrier cyclicBarrier;
         private int start;
         private int end;
         private int M, N, n, m;
-        private double F[][], W[][], V[][];
+        private double F[][], W[][];
 
-        public MyThread(double F[][], int N, int M, double W[][],
-                        int n, int m, double[][]V, int start, int end) {
+        public MyThread(CyclicBarrier cyclicBarrier, double F[][], int N, int M, double W[][],
+                        int n, int m, int start, int end) {
+            this.cyclicBarrier = cyclicBarrier;
             this.start = start;
             this.end = end;
             this.N = N;
@@ -107,11 +108,11 @@ public class Main {
             this.m = m;
             this.F = F;
             this.W = W;
-            this.V = V;
         }
 
         @Override
         public void run() {
+            double[] resPartial = new double[end - start + 1];
             //System.out.println("Start = " + start + " end = " + end);
             for (int index = start; index < end; index++) {
                 int kCenterX = m / 2;
@@ -132,9 +133,23 @@ public class Main {
 
                         // ignore input samples which are out of bound
                         if (ii >= 0 && ii < N && jj >= 0 && jj < M)
-                            V[i][j] += F[ii][jj] * W[k][l];
+                            //V[i][j] += F[ii][jj] * W[k][l];
+                            resPartial[index - start] += F[ii][jj] * W[k][l];
                     }
                 }
+            }
+            try {
+                cyclicBarrier.await();
+            } catch (InterruptedException e) {
+                // ...
+            } catch (BrokenBarrierException e) {
+                // ...
+            }
+            for (int index = start; index < end; index++) {
+                int i, j;
+                i = getLine(index, M);
+                j = getColumn(index, M);
+                F[i][j] = resPartial[index - start];
             }
         }
     }
